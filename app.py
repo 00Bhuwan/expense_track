@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
 import os
 from dotenv import load_dotenv
@@ -176,6 +176,26 @@ def update_transaction():
         db.session.commit()
 
     return redirect(url_for("dashboard"))
+
+@app.route("/filter", methods=["GET"])
+def filter():
+    if 'username' not in session:
+        return redirect(url_for("login"))
+
+    search_term = request.args.get("search_term", '')
+    if search_term:
+        items = Transaction.query.filter(Transaction.title.contains(search_term)).all()
+    else:
+        items = Transaction.query.all()
+    return jsonify([
+        {
+            "id": item.id,
+            "title": item.title,
+            "amount": item.amount,
+            "date": item.date
+        }
+        for item in items
+    ])
 
 if __name__ == '__main__':
     app.run(debug=True)

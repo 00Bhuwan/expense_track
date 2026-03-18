@@ -20,7 +20,7 @@
     <input name="title" placeholder="Title"
            value="{{ edit_txn.title if edit_txn else '' }}" required>
 
-    <input name="amount" type="number" step="0.01"
+    <input name="amount" placeholder="Amount" type="number" step="0.01"
            value="{{ edit_txn.amount if edit_txn else '' }}" required>
 
     <select name="type">
@@ -28,12 +28,17 @@
         <option value="expense" {% if edit_txn and edit_txn.type=='expense' %}selected{% endif %}>Expense</option>
     </select>
 
-    <input name="category"
+    <input name="category" placeholder="e.g Foods, clothes, etc"
            value="{{ edit_txn.category if edit_txn else '' }}">
 
     <button type="submit">
         {{ "Update" if edit_txn else "Add" }}
     </button>
+</form>
+<form method="GET" action="{{ url_for('filter') }}">
+    <label for="search_term">Filter by Title: </label>
+    <input type="text" id="search_term" name="search_term" placeholder="Enter title">
+    <button type="submit">Filter</button>
 </form>
 
 <hr>
