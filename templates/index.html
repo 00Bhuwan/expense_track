@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block body %}
+
+<div class="container">
+    <h1>Welcome</h1>
+    <form method="post">
+        <input type="text" name="username" placeholder="username">
+        <input type="email" name="email" placeholder="email">
+        <input type="password" name="password" placeholder="password">
+
+        <button formaction="{{ url_for('login') }}">Login</button>
+        <button formaction="{{ url_for('register') }}">Register</button>
+    </form>
+</div>
+
+<script>
+    function setActionForm(action){
+        let form = document.getElementById("auth-form");
+        if (action === 'login'){
+            form.action = "{{ url_for('login') }}";
+            form.method = 'post';
+            form.submit();
+        } else if(action === 'register'){
+            form.action = "{{ url_for('register') }}";
+            form.method = 'post';
+            form.submit();
+        }
+    }
+</script>
+
+{% endblock %}

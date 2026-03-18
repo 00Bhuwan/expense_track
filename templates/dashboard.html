@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block body %}
+<h2> {{username}} Dashboard</h2>
+
+<h3>Balance: {{ balance }}</h3>
+<p>Income: {{ income }}</p>
+<p>Expense: {{ expense }}</p>
+
+<hr>
+
+<h3>Add Transaction</h3>
+<form action="{{ url_for('add_transaction') }}" method="post">
+    <input name="title" placeholder="Title" required>
+    <input name="amount" type="number" step="0.01" required>
+
+    <select name="type">
+        <option value="income">Income</option>
+        <option value="expense">Expense</option>
+    </select>
+
+    <input name="category" placeholder="Category">
+    <button type="submit">Add</button>
+</form>
+
+<hr>
+
+<h3>Transactions</h3>
+
+<table border="1">
+    <tr>
+        <th>Title</th>
+        <th>Amount</th>
+        <th>Type</th>
+        <th>Category</th>
+        <th>Action</th>
+    </tr>
+
+    {% for t in transactions %}
+    <tr>
+        <td>{{ t.title }}</td>
+        <td>{{ t.amount }}</td>
+        <td>{{ t.type }}</td>
+        <td>{{ t.category }}</td>
+        <td>
+            <form action="{{ url_for('del_transaction', transaction_id=t.id) }}" method="post">
+                <button type="submit">Delete</button>
+            </form>
+        </td>
+    </tr>
+    {% endfor %}
+
+</table>
+
+<a href="{{ url_for('logout') }}">Logout</a>
+
+{% endblock %}
