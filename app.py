@@ -122,7 +122,6 @@ def add_transaction():
 
     return redirect(url_for("dashboard"))
 
-
 # delete
 @app.route("/delete/<int:transaction_id>", methods=["POST"])
 def del_transaction(transaction_id):
@@ -133,7 +132,6 @@ def del_transaction(transaction_id):
     db.session.delete(delete_trans)
     db.session.commit()
     return redirect(url_for("dashboard"))
-
 
 # edit
 @app.route("/edit/<int:transaction_id>", methods=["GET"])
