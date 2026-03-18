@@ -11,7 +11,7 @@ load_dotenv()
 app = Flask(__name__)
 DATABASE_URI = os.getenv('DATABASE_URI')
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URI
-app.config['SQLALCHEMY_TRACK_MODIFICATION'] = False
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.secret_key = os.getenv('SECRET_KEY')
 
 db = SQLAlchemy(app)
@@ -136,10 +136,34 @@ def del_transaction(transaction_id):
 
 
 # edit
-@app.route("/edit", methods=["POST"])
-def update_transaction():
+@app.route("/edit/<int:transaction_id>", methods=["GET"])
+def edit_transaction(transaction_id):
     if 'username' not in session:
         return redirect(url_for('login'))
+
+    user = User.query.filter_by(username=session['username']).first()
+
+    transactions = Transaction.query.filter_by(user_id=user.id).order_by(Transaction.id.desc()).all()
+    transaction = db.session.get(Transaction, transaction_id)
+
+    total_income = sum(t.amount for t in transactions if t.type == "income")
+    total_expense = sum(t.amount for t in transactions if t.type == "expense")
+    balance = total_income - total_expense
+
+    return render_template(
+        "dashboard.html",
+        username=session['username'],
+        transactions=transactions,
+        income=total_income,
+        expense=total_expense,
+        balance=balance,
+        edit_txn=transaction)
+
+# update
+@app.route("/update", methods=["POST"])
+def update_transaction():
+    if 'username' not in session:
+        return redirect(url_for("login"))
 
     txn_id = request.form["id"]
     transaction = db.session.get(Transaction, txn_id)
