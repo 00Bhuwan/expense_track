@@ -2,3 +2,6 @@ flask
 flask_migrate
 flask_sqlalchemy
 python-dotenv
+
+fastapi[standard]
+alembic
