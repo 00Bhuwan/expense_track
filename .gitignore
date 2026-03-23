@@ -5,5 +5,3 @@ migrations/
 
 .venv/
 .idea/
-
-fast_api/
