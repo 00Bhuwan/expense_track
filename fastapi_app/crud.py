@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from models import User, Transaction
+from .models import User, Transaction
 from typing import List, Optional
 from enum import Enum
 from datetime import datetime, UTC

@@ -6,7 +6,9 @@ from datetime import datetime, UTC
 from flask_migrate import Migrate
 from sqlalchemy.exc import IntegrityError
 
-load_dotenv()
+basedir = os.path.abspath(os.path.dirname(__file__))
+env_path = os.path.join(basedir, '..', '.env')
+load_dotenv(env_path)
 
 app = Flask(__name__)
 DATABASE_URI = os.getenv('DATABASE_URI')
@@ -196,4 +198,4 @@ def filter():
     ])
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000)
