@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, abort
 from flask_sqlalchemy import SQLAlchemy
 import os
 from dotenv import load_dotenv
@@ -25,7 +25,7 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(80), nullable=False)
-    join_date = db.Column(db.DateTime, nullable=False, default=datetime.now(UTC))
+    join_date = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(UTC))
 
 class Transaction(db.Model):
     __tablename__ = "transactions"
@@ -34,9 +34,18 @@ class Transaction(db.Model):
     amount = db.Column(db.Float, nullable=False)
     type = db.Column(db.String(10))
     category = db.Column(db.String(100))
-    date = db.Column(db.DateTime, default=datetime.now(UTC))
+    date = db.Column(db.DateTime, default=lambda: datetime.now(UTC))
 
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    user = db.relationship('User', backref=db.backref('transactions', lazy=True))
+
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template('index.html', error="Oops! This page doesn't exist."), 404
+
+@app.errorhandler(500)
+def handle_exception(e):
+    return render_template('index.html', error="Something went wrong on our end. Please try again later."), 500
 
 @app.route('/')
 def home():
@@ -48,31 +57,52 @@ def home():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        username = request.form.get('username')
+        password = request.form.get('password')
+        if not username or not password:
+            flash('Both username and password are required.')
+            return redirect(url_for('login'))
+
         user = User.query.filter_by(username=username).first()
         if user and password == user.password:
             session['username'] = username
+            flash('Welcome back!')
             return redirect(url_for('dashboard'))
         else:
-            return render_template('index.html', error='Invalid credentials')
+            flash('Invalid username or password.')
+            return redirect(url_for('login'))
     return render_template('index.html')
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
-        username = request.form['username']
-        password = request.form['password']
-        email = request.form['email']
-        user = User.query.filter_by(username=username).first()
-        if user:
-            return render_template("index.html", error="User already registered!!")
-        else:
+        username = request.form.get('username')
+        password = request.form.get('password')
+        email = request.form.get('email')
+
+        if not all([username, password, email]):
+            flash("All fields are required!")
+            return redirect(url_for('register'))
+
+        if User.query.filter_by(username=username).first():
+            flash("Username already taken!")
+            return redirect(url_for('register'))
+
+        if User.query.filter_by(email=email).first():
+            flash("Email already registered!")
+            return redirect(url_for('register'))
+
+        try:
             new_user = User(username=username, email=email, password=password)
             db.session.add(new_user)
             db.session.commit()
             session['username'] = username
+            flash("Account created successfully!")
             return redirect(url_for('dashboard'))
+        except Exception as e:
+            db.session.rollback()
+            flash("An error occurred during registration.")
+            return redirect(url_for('register'))
     return render_template("index.html")
 
 @app.route("/logout")
@@ -107,20 +137,40 @@ def add_transaction():
     if 'username' not in session:
         return redirect(url_for('login'))
 
-    title = request.form["title"]
-    amount = request.form["amount"]
-    t_type = request.form["type"]
-    category = request.form["category"]
+    title = request.form.get("title")
+    amount_str = request.form.get("amount")
+    t_type = request.form.get("type")
+    category = request.form.get("category")
+
+    if not all([title, amount_str, t_type]):
+        flash("Title, amount and type are required.")
+        return redirect(url_for("dashboard"))
+
+    try:
+        amount = float(amount_str)
+        if amount <= 0:
+            flash("Amount must be greater than zero.")
+            return redirect(url_for("dashboard"))
+    except ValueError:
+        flash("Invalid amount format.")
+        return redirect(url_for("dashboard"))
 
     user = User.query.filter_by(username=session['username']).first()
+    if not user:
+        session.pop('username', None)
+        return redirect(url_for('login'))
 
     new_transaction = Transaction(title=title, amount=amount, type=t_type, category=category, user_id=user.id)
     try:
         db.session.add(new_transaction)
         db.session.commit()
-    except IntegrityError as e:
+        flash("Transaction added successfully!")
+    except IntegrityError:
         db.session.rollback()
-        return f"Error: Title must be unique."
+        flash("Error: Transaction title must be unique.")
+    except Exception as e:
+        db.session.rollback()
+        flash("An unexpected error occurred.")
 
     return redirect(url_for("dashboard"))
 
@@ -131,8 +181,21 @@ def del_transaction(transaction_id):
         return redirect(url_for('login'))
 
     delete_trans = Transaction.query.get_or_404(transaction_id)
-    db.session.delete(delete_trans)
-    db.session.commit()
+    
+    # Security check: ensure the transaction belongs to the logged-in user
+    user = User.query.filter_by(username=session['username']).first()
+    if delete_trans.user_id != user.id:
+        flash("Access denied.")
+        return redirect(url_for("dashboard"))
+
+    try:
+        db.session.delete(delete_trans)
+        db.session.commit()
+        flash("Transaction deleted.")
+    except Exception:
+        db.session.rollback()
+        flash("Could not delete transaction.")
+        
     return redirect(url_for("dashboard"))
 
 # edit
@@ -165,15 +228,37 @@ def update_transaction():
     if 'username' not in session:
         return redirect(url_for("login"))
 
-    txn_id = request.form["id"]
-    transaction = db.session.get(Transaction, txn_id)
+    txn_id = request.form.get("id")
+    if not txn_id:
+        flash("Invalid transaction ID.")
+        return redirect(url_for("dashboard"))
 
-    if transaction:
-        transaction.title = request.form["title"]
-        transaction.amount = float(request.form["amount"])
-        transaction.type = request.form["type"]
-        transaction.category = request.form["category"]
+    transaction = db.session.get(Transaction, txn_id)
+    if not transaction:
+        flash("Transaction not found.")
+        return redirect(url_for("dashboard"))
+
+    # Security check
+    user = User.query.filter_by(username=session['username']).first()
+    if transaction.user_id != user.id:
+        flash("Access denied.")
+        return redirect(url_for("dashboard"))
+
+    try:
+        transaction.title = request.form.get("title", transaction.title)
+        amount_str = request.form.get("amount")
+        if amount_str:
+            transaction.amount = float(amount_str)
+        transaction.type = request.form.get("type", transaction.type)
+        transaction.category = request.form.get("category", transaction.category)
+        
         db.session.commit()
+        flash("Transaction updated successfully!")
+    except ValueError:
+        flash("Invalid amount format.")
+    except Exception as e:
+        db.session.rollback()
+        flash("Could not update transaction.")
 
     return redirect(url_for("dashboard"))
 
